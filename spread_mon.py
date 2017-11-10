@@ -6,39 +6,44 @@ from time import sleep
 
 #==================================================================================
 def init():
-    print('spread monitor ver 0.001a')
+    print('spread monitor ver 0.002a')
     print ('==================================================================')
+    print ("exchange" , "market", '\t', "bid price",'\t', "bid vol",'\t', "ask price",'\t', "ask vol",'\t', "spread" ,'\t', 'spread %','\t', "datetime")
+            
 
 #==================================================================================
 
-def main ():
+def main():
 
     exchange=[]
 
     exchange.append(ccxt.exmo({'verbose': False}))
     exchange.append(ccxt.okcoinusd({'verbose': False}))
-    exchange.append(ccxt.bitfinex({'verbose': False}))
-    exchange.append(ccxt.kraken({'verbose': False}))
-
-    debug_output = True
+    exchange.append(ccxt.wex({'verbose': False}))
 
     while True:
-        for ex in exchange :
-            orderbook = ex.fetch_order_book (cc_conf.coin_one + '/' + cc_conf.coin_two)
-            bid = max(orderbook['bids'],key=lambda item: item[0])
-            ask = min(orderbook['asks'],key=lambda item: item[0])
+        for ex in exchange:
+            try:
+                ex.loadMarkets()
+            except:
+                print("Error loadMarkets!")
+                continue
 
-            spread = (ask[0] - bid[0])
-            spread_percent = spread / ask[0] * 100
+            for market in ex.markets:
+ 
+                orderbook = ex.fetch_order_book(market)
+                bid = max(orderbook['bids'],key=lambda item: item[0])
+                ask = min(orderbook['asks'],key=lambda item: item[0])
 
-            if debug_output :
-                 print ex.id , bid[0], bid[1], ask[0], ask[1], spread , '{0:.2f}%'.format(spread_percent), orderbook['datetime']
-            else:
-                 print ex.id, '{ bid :', bid, 'ask :', ask, 'spread :', spread , '({0:.2f}%)'.format(spread_percent) ,'}'
+                spread = (ask[0] - bid[0])
+                spread_percent = spread / ask[0] * 100
 
-            #datetime
-        print ('==================================================================')
-        sleep(120)
+                print (ex.id , market, '\t', bid[0],'\t', bid[1],'\t', ask[0],'\t', ask[1],'\t', spread ,'\t', '{0:.2f}%'.format(spread_percent),'\t', orderbook['datetime'] )
+            
+            print ('end', ex.id, '==================================================================')
+            
+        print ('***')
+        sleep(30)
 
 
 #==================================================================================
