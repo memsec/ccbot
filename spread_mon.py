@@ -18,9 +18,8 @@ def main():
 
     exchange=[]
 
-    exchange.append(ccxt.exmo({'verbose': False}))
-    exchange.append(ccxt.okcoinusd({'verbose': False}))
     exchange.append(ccxt.wex({'verbose': False}))
+    exchange.append(ccxt.okcoinusd({'verbose': False}))
 
     while True:
         for ex in exchange:
