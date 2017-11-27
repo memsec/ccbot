@@ -187,8 +187,13 @@ def main ():
     trade_precision = exchange.markets.get(trade_pair).get('precision').get('amount')
     trade_pair_fee = exchange.markets.get(trade_pair).get('info').get('fee')/100
 
-    #Скорость торговли (кол-во запросов в секунду)
+    # Скорость торговли (кол-во запросов в секунду)
     trade_speed=0.5 
+
+    # Инициализация переменной для общей статистики торгов
+    trade_summ_buy  = 0
+    trade_summ_sell = 0
+
 
     #Направление торговли 
     sell=0
@@ -267,7 +272,6 @@ def main ():
                 if trade_buyOrder['id'] == trade['order']:
                     trade_sellVolume = trade_sellVolume + trade['amount']
 
-
             if trade_sellVolume > 0:
                 # print('Выставим ордер на продажу ', master_coin)
                 #!!! добавить проверку на минимальный размер ордера
@@ -285,7 +289,13 @@ def main ():
                 if trade_checkOrder == 1:
                     trade_direction = buy
                     trade_sell=round(trade_sellOrder['amount']*trade_sellOrder['price'],trade_precision) 
-                    print('[х] Profit : ', '{0:.2f}'.format(((trade_sell-trade_buy)/trade_buy)*100), '%  ', '{0:.5f}'.format(trade_sell-trade_buy), slave_coin)
+                    
+                    trade_summ_buy  = trade_summ_buy + trade_buy
+                    trade_summ_sell = trade_summ_sell + trade_sell
+
+                    print('[х] Профит сделки  : ', '{0:.2f}'.format(((trade_sell-trade_buy)/trade_buy)*100), '%  ', '{0:.5f}'.format(trade_sell-trade_buy), slave_coin)
+                    print('[=] Итого за сессию: ', '{0:.2f}'.format(((trade_summ_sell-trade_buy)/trade_summ_buy)*100), '%  ', '{0:.5f}'.format(trade_summ_sell-trade_summ_buy), slave_coin)
+
                     break
                 else:
                     if trade_checkOrder == -1:
