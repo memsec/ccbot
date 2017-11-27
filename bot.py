@@ -1,7 +1,7 @@
 # coding=utf-8
 
 import ccxt, telebot
-from telebot import types
+#from telebot import types
 
 import cc_conf
 import sys
@@ -9,28 +9,29 @@ from time import sleep
 
 tbot = telebot.TeleBot(cc_conf.telegram_token)
 
-##############################################################
-@tbot.message_handler(commands=['start'])
-def handle_start(message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(*[types.KeyboardButton(name) for name in ['Уведомлять', 'Не уведомлять']])
-    tbot.send_message(message.chat.id, "Для получения информации нажмите клавишу.", reply_markup=keyboard)  
-    any_msg(message)
 
 ##############################################################
-@tbot.message_handler(content_types=['text'])
-def any_msg(call):
-    if call.text == u'Уведомлять':
-         msg = u'Уведомления включены\n'
-    else:
-        if call.text == u'Не уведомлять':
-            msg = u'Уведомления отключены\n'
+#@tbot.message_handler(commands=['start'])
+#def handle_start(message):
+#    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+#    keyboard.add(*[types.KeyboardButton(name) for name in ['Уведомлять', 'Не уведомлять']])
+#    tbot.send_message(message.chat.id, "Для получения информации нажмите клавишу.", reply_markup=keyboard)  
+#    any_msg(message)
 
-    tbot.send_message(call.chat.id, msg, parse_mode="HTML")
+##############################################################
+#@tbot.message_handler(content_types=['text'])
+#def any_msg(call):
+#    if call.text == u'Уведомлять':
+#         msg = u'Уведомления включены\n'
+#    else:
+#        if call.text == u'Не уведомлять':
+#            msg = u'Уведомления отключены\n'
+#
+#    tbot.send_message(call.chat.id, msg, parse_mode="HTML")
 
 ##############################################################
 def init():
-    print('ccbot ver 0.003a')
+    print('ccbot ver 0.004a')
     print ('==================================================================')
 
 ##############################################################
@@ -57,7 +58,7 @@ def check_order(exchange, id, pair, direction):
 
     #Запрашиваем выставленные ордера
     try:
-        sleep(1/2)
+        sleep(1)
         orders = exchange.fetchOpenOrders(pair)
 
     except KeyboardInterrupt:
@@ -71,7 +72,7 @@ def check_order(exchange, id, pair, direction):
         for trade in trades:
             #Если находим ордер в истории торгов, то меняем направление торговли и даем сигнал на прерывание цикла 
             if trade['order'] == id:
-                print('Ордер исполнен')
+                print('[+] Ордер ', id,' исполнен (1)')
                 return 1
             else:             
                 #Если ошибка вызвана отсутствием открытых ордеров, то даем сигнал на прерывание цикла
@@ -80,10 +81,10 @@ def check_order(exchange, id, pair, direction):
                     return -1
                 else:
                     if err.args[0].find('invalid nonce parameter') >= 0 : 
-                        print('Ошибка в значении nonce 1.')
+                        print('Ошибка в значении nonce (3).')
                         sleep(1)
                     else:         
-                        print('Ошибка 3: ', err) 
+                        print('Ошибка (3): ', err) 
     try:                       
         for trade_order in orders:
             if trade_order['id'] == id:
@@ -97,20 +98,18 @@ def check_order(exchange, id, pair, direction):
 
                         if bid[0] > trade_order['price']:
                             # если цену нам перебили, снимаем ордер и даем сигнал на прерывание цикла
+                            sleep(1/2)
                             exchange.cancelOrder( id )
-                            print('Изменение цены стакана, ордер удален')
-                            print(' Цена ордера : ', trade_order['price'])
-                            print(' Цена стакана: ', bid[0] )
+                            print('[-] Изменение цены стакана ', trade_order['price'], '->', bid[0], 'ордер удален')
                             return -1
                     else:
                         ask = min(orderbook['asks'],key=lambda item: item[0])
 
                         if ask[0] < trade_order['price']:
                             # если цену нам перебили, снимаем ордер и даем сигнал на прерывание цикла
+                            sleep(1/2)
                             exchange.cancelOrder( id )
-                            print('Изменение цены стакана, ордер удален')
-                            print(' Цена ордера : ', trade_order['price'])
-                            print(' Цена стакана: ', ask[0] )
+                            print('[-] Изменение цены стакана ', trade_order['price'], '->', ask[0], 'ордер удален')
                             return -1
 
     except KeyboardInterrupt:
@@ -119,12 +118,12 @@ def check_order(exchange, id, pair, direction):
         sys.exit(2)
 
     except Exception as err:
-        sleep(1/2)
+        sleep(1)
         trades = exchange.fetchMyTrades(pair)
         for trade in trades:
             #Если находим ордер в истории торгов, то даем сигнал на прерывание цикла и изменение направления торговли
             if trade['order'] == id:
-                print('Ордер исполнен!')
+                print('[+] Ордер ', id,' исполнен (2)')
                 return 1
                                       
         #Если ошибка вызвана отсутствием открытых ордеров, то даем сигнал на прерывание цикла отслеживания
@@ -132,10 +131,10 @@ def check_order(exchange, id, pair, direction):
             return -1
                                
         if err.args[0].find('invalid nonce parameter') >= 0 : 
-            print('Ошибка в значении nonce 2.')
+            print('Ошибка в значении nonce (2).')
             sleep(1)
         else:         
-            print('Ошибка 2: ', err)                        
+            print('Ошибка (2): ', err)                        
 
     return 0
 
@@ -197,6 +196,11 @@ def main ():
     
     trade_direction=buy  
     trade_cancelOrderFalg=False
+    
+    if cc_conf.coin_one.upper()  == exchange.markets[trade_pair]['base']:
+        trade_buyVolume =  cc_conf.trade_balance
+    else:
+        trade_buyVolume = round(cc_conf.trade_balance/trade_buyPrice*(1-trade_pair_fee),trade_precision)
 
     while True:
     
@@ -232,47 +236,40 @@ def main ():
                 # print('Выставим ордер на покупку ', master_coin)
                 sleep(1)
                 #exchange.markets.get(trade_pair).get('info').get('min_amount')
-
-                if coin_one.upper() == exchange.markets[trade_pair]['base']:
-                    trade_buyVolume =  cc_conf.trade_balance
-                else:
-                    trade_buyVolume = round(cc_conf.trade_balance/trade_buyPrice*(1-trade_pair_fee),trade_precision)
                
                 try:
                     trade_buyOrder = exchange.createLimitBuyOrder(trade_pair, trade_buyVolume, trade_buyPrice )
                     sleep(1)
                 except Exception as err: 
-                    print('Ошибка 1: ', err)
+                    print('Ошибка (1): ', err)
                     break
 
                 print('[>] Создан ордер ', trade_buyOrder['id'] ,' на покупку ', round(trade_buyOrder['amount'],trade_precision), master_coin, ' за ', round(trade_buyOrder['amount']*trade_buyOrder['price'],trade_precision) ,slave_coin, ' по цене ', trade_buyOrder['price'])
-
 
                 # отслеживание ордера
                 while True and trade_direction == buy:
                     trade_checkOrder = check_order(exchange, trade_buyOrder['id'], trade_pair, trade_direction)
                     if trade_checkOrder == 1:
                         trade_direction = sell
+                        break
                     else:
                         if trade_checkOrder== -1:
                             break
                     sleep(1)
-
-            print('Profit : ', '{0:.2f}'.format((spread - trade_pair_fee)*100), '%  ', '{0:.4f}'.format(bid[1]*(spread - trade_pair_fee)))
+            trade_buy = round(trade_buyOrder['amount']*trade_buyOrder['price'],trade_precision) 
         
         # if trade_direction == buy:
         else:  
             trade_sellPrice = round(ask[0] - cc_conf.trade_offset/(10**trade_precision),trade_precision)
-
-            #print('Купили:', trade_buyPrice,' Продали:', trade_sellPrice, 'Дельта цены:', trade_sellPrice-trade_buyPrice )
-
+            trade_sellVolume = 0
             trades = exchange.fetchMyTrades(trade_pair)
             for trade in trades:
                 if trade_buyOrder['id'] == trade['order']:
-                    trade_sellVolume = trade['amount']
+                    trade_sellVolume = trade_sellVolume + trade['amount']
+
 
             if trade_sellVolume > 0:
-                print('Выставим ордер на продажу ', master_coin)
+                # print('Выставим ордер на продажу ', master_coin)
                 #!!! добавить проверку на минимальный размер ордера
                 
                 sleep(1)
@@ -282,18 +279,18 @@ def main ():
             else:
                 print('Недостаточно ', master_coin,  ' для торговли')  
             
-  
             # отслеживание ордера
             while True and trade_direction == sell:
                 trade_checkOrder = check_order(exchange, trade_sellOrder['id'], trade_pair, trade_direction)
                 if trade_checkOrder == 1:
                     trade_direction = buy
+                    trade_sell=round(trade_sellOrder['amount']*trade_sellOrder['price'],trade_precision) 
+                    print('[х] Profit : ', '{0:.2f}'.format(((trade_sell-trade_buy)/trade_buy)*100), '%  ', '{0:.5f}'.format(trade_sell-trade_buy), slave_coin)
+                    break
                 else:
-                    if trade_checkOrder== -1:
+                    if trade_checkOrder == -1:
                         break
             sleep(1)
-
-            print('Profit : ', '{0:.2f}'.format((spread - trade_pair_fee)*100), '%  ', '{0:.4f}'.format(bid[1]*(spread - trade_pair_fee)))
 
         try:
             sleep(1/trade_speed)
