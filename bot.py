@@ -80,7 +80,7 @@ def check_order(exchange, id, pair, direction):
                     return -1
                 else:
                     if err.args[0].find('invalid nonce parameter') >= 0 : 
-                        print('Ошибка в значении nonce.')
+                        print('Ошибка в значении nonce 1.')
                         sleep(1)
                     else:         
                         print('Ошибка 3: ', err) 
@@ -132,7 +132,7 @@ def check_order(exchange, id, pair, direction):
             return -1
                                
         if err.args[0].find('invalid nonce parameter') >= 0 : 
-            print('Ошибка в значении nonce.')
+            print('Ошибка в значении nonce 2.')
             sleep(1)
         else:         
             print('Ошибка 2: ', err)                        
