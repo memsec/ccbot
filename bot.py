@@ -1,13 +1,13 @@
 # coding=utf-8
 
-import ccxt, telebot
+import ccxt
 #from telebot import types
 
 import cc_conf
 import sys
 from time import sleep
 
-tbot = telebot.TeleBot(cc_conf.telegram_token)
+#tbot = telebot.TeleBot(cc_conf.telegram_token)
 
 
 ##############################################################
@@ -31,7 +31,7 @@ tbot = telebot.TeleBot(cc_conf.telegram_token)
 
 ##############################################################
 def init():
-    print('ccbot ver 0.004a')
+    print('ccbot ver 0.005b')
     print ('==================================================================')
 
 ##############################################################
