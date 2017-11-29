@@ -1,37 +1,53 @@
 # coding=utf-8
 
 import ccxt
-#from telebot import types
+import telebot 
+from telebot import types
 
 import cc_conf
 import sys
 from time import sleep
 
-#tbot = telebot.TeleBot(cc_conf.telegram_token)
 
+# Инициализация переменной для общей статистики торгов
+trade_summ_buy  = 0
+trade_summ_sell = 0
 
-##############################################################
-#@tbot.message_handler(commands=['start'])
-#def handle_start(message):
-#    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-#    keyboard.add(*[types.KeyboardButton(name) for name in ['Уведомлять', 'Не уведомлять']])
-#    tbot.send_message(message.chat.id, "Для получения информации нажмите клавишу.", reply_markup=keyboard)  
-#    any_msg(message)
+#Направление торговли 
+sell=0
+buy=1
+    
+trade_direction=buy  
 
-##############################################################
-#@tbot.message_handler(content_types=['text'])
-#def any_msg(call):
-#    if call.text == u'Уведомлять':
-#         msg = u'Уведомления включены\n'
-#    else:
-#        if call.text == u'Не уведомлять':
-#            msg = u'Уведомления отключены\n'
-#
-#    tbot.send_message(call.chat.id, msg, parse_mode="HTML")
+trade_exit=False
+
+tbot = telebot.AsyncTeleBot(cc_conf.telegram_token)
+
+#tbot._TeleBot__stop_polling._flag = False   
+#tbot.polling()
+
+updates = tbot.get_updates()
+
+try:
+    for update in updates:
+        if int(update.update_id) > int(tbot.last_update_id):
+            tbot.last_update_id = update.update_id
+except Exception as ex:
+    print(traceback.format_exc())
+
+update_offset = tbot.last_update_id
+
 
 ##############################################################
 def init():
-    print('ccbot ver 0.005b')
+    message = 'ccbot v. 0.01b запущен'
+    print(message)
+    
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(*[types.KeyboardButton(name) for name in ['Остановить немедленно', 'Остановить после цикла', 'Информация']])
+    msg = tbot.send_message(cc_conf.telegram_id, message, reply_markup=keyboard)
+
+   
     print ('==================================================================')
 
 ##############################################################
@@ -40,8 +56,11 @@ def check_balance(exchange, coin):
     sleep(1/2)
     balance = exchange.fetchBalance()
     if balance.get(coin).get('free') < cc_conf.trade_balance:
-        print('Недостаточно свободных средств для выставления ордера')
-        return balance.get(coin).get('free') 
+        message='[!] Недостаточно свободных средств для выставления ордера. Работа завершена'
+        print(message)
+        tbot.send_message(cc_conf.telegram_id, message)
+        sys.exit(2)
+        #return balance.get(coin).get('free') 
     else:
         return balance.get(coin).get('free')
 
@@ -52,10 +71,22 @@ def check_balance(exchange, coin):
 ##############################################################
 
 def check_order(exchange, id, pair, direction):
-    #Направление торговли (излишне, но понятно)
-    sell=0
-    buy=1
-
+    
+    if polling( ) == -1:
+        message = u'Ок, немедленно сворачиваем лавочку.\n'
+        tbot.send_message(cc_conf.telegram_id, message)
+        sleep(1)
+        try:
+            exchange.cancelOrder( id )
+        except Exception as err:
+            message = 'Невозможно закрыть ордер. Ошибка: '+ err
+            tbot.send_message(cc_conf.telegram_id, message)
+            sys.exit(-1)
+        
+        message = 'Ордер '+ id +' закрыт. Работа завершена.'
+        tbot.send_message(cc_conf.telegram_id, message)        
+        sys.exit(2)
+    
     #Запрашиваем выставленные ордера
     try:
         sleep(1)
@@ -74,17 +105,18 @@ def check_order(exchange, id, pair, direction):
             if trade['order'] == id:
                 print('[+] Ордер ', id,' исполнен (1)')
                 return 1
-            else:             
-                #Если ошибка вызвана отсутствием открытых ордеров, то даем сигнал на прерывание цикла
-                if err.args[0]=='wex {"success":0,"error":"no orders"}':
-                    print('Ордер отменен внешним воздействием.')
-                    return -1
-                else:
-                    if err.args[0].find('invalid nonce parameter') >= 0 : 
-                        print('Ошибка в значении nonce (3).')
-                        sleep(1)
-                    else:         
-                        print('Ошибка (3): ', err) 
+        
+        #Если ошибка вызвана отсутствием открытых ордеров, то даем сигнал на прерывание цикла
+        if err.args[0].find('no orders') > 0:
+            print('Ордер отменен внешним воздействием (1).')
+            return -1
+       
+        if err.args[0].find('invalid nonce parameter') >= 0 : 
+            print('Ошибка в значении nonce (1).')
+            sleep(1)
+        else:         
+            print('Ошибка (3): ', err) 
+
     try:                       
         for trade_order in orders:
             if trade_order['id'] == id:
@@ -127,7 +159,7 @@ def check_order(exchange, id, pair, direction):
                 return 1
                                       
         #Если ошибка вызвана отсутствием открытых ордеров, то даем сигнал на прерывание цикла отслеживания
-        if err.args[0]=='wex {"success":0,"error":"no orders"}':
+        if err.args[0].find('no orders') > 0:
             return -1
                                
         if err.args[0].find('invalid nonce parameter') >= 0 : 
@@ -146,20 +178,80 @@ def getOrderBook(exchange, pair):
             orderbook = exchange.fetch_order_book (pair)
             break
         except KeyboardInterrupt:
-            #tbot.send_message(call.chat.id, "Stopped by keyboard interrupt.", parse_mode="HTML")
             break
-        except:
-            err = sys.exc_info()[1]
-            print(err.args[0])
+        except Exception as err: 
+            print('Ошибка (0): ', err)
             sleep(5)
 
     return orderbook
+##############################################################
+
+def process_message(self):
+    text = self.message.text
+    text = text.strip()
+
+    try:
+        if text == 'Остановить немедленно':
+            return -1
+        else:
+            if text == u'Остановить после цикла':
+                if trade_direction==buy:
+                    message = u'Завершаем работу.\n'
+                else:
+                    message = u'Вас понял. Жду исполнения профитного ордера.\n'
+                tbot.send_message(cc_conf.telegram_id, message)
+                trade_exit=True
+                return -2
+            else:
+                 if text == u'Информация':
+                    message ='Итого \n куплено: '+str(round(trade_summ_buy,trade_precision))+slave_coin+'\n продано: '+str(round(trade_summ_sell,trade_precision))+slave_coin+'\n дельта :'+str(round(trade_summ_sell-trade_summ_buy,trade_precision)) + '\n Спред : ' + str(round(spread_percent,2)) +'% ('+ str(round(spread,trade_precision)) + slave_coin +')'
+                    tbot.send_message(cc_conf.telegram_id, message)
+                    message =''
+
+    except Exception:
+        pass
+    
+    return 0
+
+    #updates = tbot._TeleBot__stop_polling
+    #_TeleBot__stop_polling = 0
+##############################################################
+
+def polling():
+    
+    updates = tbot.get_updates()
+    result = 0
+
+    try:
+        for update in updates:
+            if int(update.update_id) > int(tbot.last_update_id):
+                tbot.last_update_id = update.update_id
+                result = process_message(update)
+                
+    except Exception as ex:
+        print(traceback.format_exc())
+    return result
+
 
 ##############################################################
-def main ():
+def main (update_offset):
+
+    global trade_summ_buy
+    global trade_summ_sell
+    global trade_direction  
+    global trade_exit
+
+    global slave_coin
+    global spread_percent 
+    global spread
+    global trade_precision 
+
+
 
     if cc_conf.exchange != 'wex' :
-       print('Неизвестная науке биржа - ', cc_conf.exchange, '. Работа завершена.')
+       message='Неизвестная науке биржа - '+ cc_conf.exchange+ '. Работа завершена.'
+       print(message)
+       tbot.send_message(cc_conf.telegram_id, message)
        sys.exit(-1)
     else:
         exchange = ccxt.wex({
@@ -167,21 +259,21 @@ def main ():
             'secret': cc_conf.wex['secret'],
             'verbose': False,
         })
-    
-    print ('Exchange: ', exchange.id ,'\n')
-    
+
     coin_one = cc_conf.coin_one.upper() 
     coin_two = cc_conf.coin_two.upper()
     trade_pair = coin_one + '/' + coin_two
-    print (trade_pair)
     
+    message='Биржа: ' + exchange.id + '\nТорговая пара:'+ trade_pair
+    print (message)
+    tbot.send_message(cc_conf.telegram_id, message)
+
     if cc_conf.master_coin.upper() == coin_one:
         master_coin = coin_one
         slave_coin = coin_two
     else:
         master_coin = coin_two
         slave_coin = coin_one
-
 
     markets = exchange.load_markets()
     trade_precision = exchange.markets.get(trade_pair).get('precision').get('amount')
@@ -190,16 +282,6 @@ def main ():
     # Скорость торговли (кол-во запросов в секунду)
     trade_speed=0.5 
 
-    # Инициализация переменной для общей статистики торгов
-    trade_summ_buy  = 0
-    trade_summ_sell = 0
-
-
-    #Направление торговли 
-    sell=0
-    buy=1
-    
-    trade_direction=buy  
     trade_cancelOrderFalg=False
     
     if cc_conf.coin_one.upper()  == exchange.markets[trade_pair]['base']:
@@ -220,16 +302,28 @@ def main ():
         spread_percent = spread  * 100
 
         print ('Спред:', '{0:.2f}%'.format(spread_percent),' ', '{0:.4f}'.format(ask[0] - bid[0]), slave_coin ,'\t Покупка/продажа', '{0:.4f}'.format(ask[0]),' / ', '{0:.4f}'.format(bid[0]),'\t',  orderbook['datetime'] )
+        
+        poll_result = polling() 
 
+        if poll_result<= -1:
+            message = u'Ок, Кэп! Завершаю работу. \n'
+            tbot.send_message(cc_conf.telegram_id, message)
+            sys.exit(-1)
+        
         #Проверяем направление торговли, если покупки не было
         if trade_direction == buy:
+
+            if poll_result == -2:
+                message = '[*] Цикл окончен, работа завершена.' 
+                print(message)
+                tbot.send_message(cc_conf.telegram_id, message)
 
             #проверяем профитность спреда.
             if ( (spread - trade_pair_fee*2) < cc_conf.profit_percent/100 ) and (trade_direction==buy)  :                
                 try:
                     sleep(1/trade_speed)
                 except KeyboardInterrupt:
-                    print('Работа завершена.')
+                    print('[*] Работа завершена.')
                     break
                 continue
             
@@ -249,13 +343,18 @@ def main ():
                     print('Ошибка (1): ', err)
                     break
 
-                print('[>] Создан ордер ', trade_buyOrder['id'] ,' на покупку ', round(trade_buyOrder['amount'],trade_precision), master_coin, ' за ', round(trade_buyOrder['amount']*trade_buyOrder['price'],trade_precision) ,slave_coin, ' по цене ', trade_buyOrder['price'])
+                message = '[>] Создан ордер ' + trade_buyOrder['id'] + ' на покупку ' + str(round(trade_buyOrder['amount'],trade_precision)) + master_coin + ' за ' + str(round(trade_buyOrder['amount']*trade_buyOrder['price'],trade_precision)) + slave_coin + ' по цене ' + str(trade_buyOrder['price']) 
+                print(message)
+                tbot.send_message(cc_conf.telegram_id, message)
+                message =''
 
                 # отслеживание ордера
                 while True and trade_direction == buy:
                     trade_checkOrder = check_order(exchange, trade_buyOrder['id'], trade_pair, trade_direction)
                     if trade_checkOrder == 1:
                         trade_direction = sell
+                        message='[+] Ордер ' + trade_buyOrder['id'] + ' исполнен.'
+                        tbot.send_message(cc_conf.telegram_id, message)
                         break
                     else:
                         if trade_checkOrder== -1:
@@ -278,8 +377,10 @@ def main ():
                 
                 sleep(1)
                 trade_sellOrder = exchange.createLimitSellOrder(trade_pair, trade_sellVolume, trade_sellPrice )
-                #trade_direction = sell
-                print('[<] Создан ордер ', trade_sellOrder['id'] ,' на продажу ', trade_sellVolume, master_coin,  ' за ', round(trade_sellOrder['amount']*trade_sellOrder['price'],trade_precision) ,slave_coin, ' по цене ', trade_sellPrice) 
+                message='[<] Создан ордер '+ trade_sellOrder['id'] +' на продажу '+ str( trade_sellVolume) + master_coin + ' за ' + str(round(trade_sellOrder['amount']*trade_sellOrder['price'],trade_precision)) + slave_coin + ' по цене '+ str(trade_sellPrice)
+                print(message) 
+                tbot.send_message(cc_conf.telegram_id, message)
+                message=''        
             else:
                 print('Недостаточно ', master_coin,  ' для торговли')  
             
@@ -288,13 +389,26 @@ def main ():
                 trade_checkOrder = check_order(exchange, trade_sellOrder['id'], trade_pair, trade_direction)
                 if trade_checkOrder == 1:
                     trade_direction = buy
+                    message='[+] Ордер '+ trade_sellOrder['id']+' исполнен.'
+                    tbot.send_message(cc_conf.telegram_id, message)
+
                     trade_sell=round(trade_sellOrder['amount']*trade_sellOrder['price'],trade_precision) 
                     
                     trade_summ_buy  = trade_summ_buy + trade_buy
                     trade_summ_sell = trade_summ_sell + trade_sell
 
                     print('[х] Профит сделки  : ', '{0:.2f}'.format(((trade_sell-trade_buy)/trade_buy)*100), '%  ', '{0:.5f}'.format(trade_sell-trade_buy), slave_coin)
-                    print('[=] Итого за сессию: ', '{0:.2f}'.format(((trade_summ_sell-trade_buy)/trade_summ_buy)*100), '%  ', '{0:.5f}'.format(trade_summ_sell-trade_summ_buy), slave_coin)
+                    print('[=] Итого за сессию: ', '{0:.2f}'.format(((trade_summ_sell-trade_summ_buy)/trade_summ_buy)*100), '%  ', '{0:.5f}'.format(trade_summ_sell-trade_summ_buy), slave_coin)
+                    print('            куплено: ', '{0:.5f}'.format(trade_summ_buy), slave_coin, 'продано: ', '{0:.5f}'.format(trade_summ_sell), slave_coin)
+                    
+                    message = '[х] Профит сделки  : ' +  str(round(((trade_sell-trade_buy)/trade_buy)*100,trade_precision)) + '%  ' + str(round(trade_sell-trade_buy,trade_precision)) + slave_coin
+                    tbot.send_message(cc_conf.telegram_id, message)
+
+                    message ='[=] Итого \n куплено: '+str(round(trade_summ_buy,trade_precision))+slave_coin+'\n продано: '+str(round(trade_summ_sell,trade_precision))+slave_coin+'\n дельта :'+str(round(trade_summ_sell-trade_summ_buy,trade_precision))
+                    tbot.send_message(cc_conf.telegram_id, message)
+                    message =''
+
+
 
                     break
                 else:
@@ -314,4 +428,4 @@ def main ():
 if __name__ == '__main__': 
 
     init()    
-    main()
+    main(update_offset)
