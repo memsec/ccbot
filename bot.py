@@ -40,7 +40,7 @@ update_offset = tbot.last_update_id
 
 ##############################################################
 def init():
-    message = 'ccbot v. 0.01b запущен'
+    message = 'ccbot v. 0.02b запущен'
     print(message)
     
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -131,8 +131,17 @@ def check_order(exchange, id, pair, direction):
                         if bid[0] > trade_order['price']:
                             # если цену нам перебили, снимаем ордер и даем сигнал на прерывание цикла
                             sleep(1/2)
-                            exchange.cancelOrder( id )
-                            print('[-] Изменение цены стакана ', trade_order['price'], '->', bid[0], 'ордер удален')
+                            exchange.cancelOrder( id ) 
+                            ticker = exchange.fetch_ticker(pair)
+                            if ticker['last'] < trade_order['price']:
+                                arrow=chr(8595)
+                            else:
+                                if ticker['last'] > trade_order['price']:
+                                    arrow=chr(8593)
+
+                            message='['+arrow+'] Изменение цены '+ str(trade_order['price']) + '->'+ str(bid[0])+ ' ордер удален'
+                            print(message)
+                            tbot.send_message(cc_conf.telegram_id, message)
                             return -1
                     else:
                         ask = min(orderbook['asks'],key=lambda item: item[0])
@@ -141,7 +150,16 @@ def check_order(exchange, id, pair, direction):
                             # если цену нам перебили, снимаем ордер и даем сигнал на прерывание цикла
                             sleep(1/2)
                             exchange.cancelOrder( id )
-                            print('[-] Изменение цены стакана ', trade_order['price'], '->', ask[0], 'ордер удален')
+                            ticker = exchange.fetch_ticker(pair)
+                            if ticker['last'] < trade_order['price']:
+                                arrow=chr(8595)
+                            else:
+                                if ticker['last'] > trade_order['price']:
+                                    arrow=chr(8593)
+
+                            message = '[' + arrow +'] Изменение цены '+ str(trade_order['price']) + '->' + str(ask[0]) + ' ордер удален.\n    Цена покупки ' + str(trade_buyPrice) + ' отклонение '+  str(round(trade_buyPrice-ask[0],trade_precision)) +' '+ slave_coin
+                            print(message)
+                            tbot.send_message(cc_conf.telegram_id, message)
                             return -1
 
     except KeyboardInterrupt:
@@ -245,7 +263,8 @@ def main (update_offset):
     global spread_percent 
     global spread
     global trade_precision 
-
+    global trade_lastPrice
+    global trade_buyPrice
 
 
     if cc_conf.exchange != 'wex' :
@@ -343,7 +362,7 @@ def main (update_offset):
                     print('Ошибка (1): ', err)
                     break
 
-                message = '[>] Создан ордер ' + trade_buyOrder['id'] + ' на покупку ' + str(round(trade_buyOrder['amount'],trade_precision)) + master_coin + ' за ' + str(round(trade_buyOrder['amount']*trade_buyOrder['price'],trade_precision)) + slave_coin + ' по цене ' + str(trade_buyOrder['price']) 
+                message = '['+ chr(9650)+'] Создан ордер ' + trade_buyOrder['id'] + ' на покупку ' + str(round(trade_buyOrder['amount'],trade_precision)) + master_coin + ' за ' + str(round(trade_buyOrder['amount']*trade_buyOrder['price'],trade_precision)) + slave_coin + ' по цене ' + str(trade_buyOrder['price']) 
                 print(message)
                 tbot.send_message(cc_conf.telegram_id, message)
                 message =''
@@ -372,12 +391,11 @@ def main (update_offset):
                     trade_sellVolume = trade_sellVolume + trade['amount']
 
             if trade_sellVolume > 0:
-                # print('Выставим ордер на продажу ', master_coin)
                 #!!! добавить проверку на минимальный размер ордера
                 
                 sleep(1)
                 trade_sellOrder = exchange.createLimitSellOrder(trade_pair, trade_sellVolume, trade_sellPrice )
-                message='[<] Создан ордер '+ trade_sellOrder['id'] +' на продажу '+ str( trade_sellVolume) + master_coin + ' за ' + str(round(trade_sellOrder['amount']*trade_sellOrder['price'],trade_precision)) + slave_coin + ' по цене '+ str(trade_sellPrice)
+                message='['+ chr(9660)+'] Создан ордер '+ trade_sellOrder['id'] +' на продажу '+ str( trade_sellVolume) + master_coin + ' за ' + str(round(trade_sellOrder['amount']*trade_sellOrder['price'],trade_precision)) + slave_coin + ' по цене '+ str(trade_sellPrice)
                 print(message) 
                 tbot.send_message(cc_conf.telegram_id, message)
                 message=''        
