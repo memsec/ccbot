@@ -44,6 +44,13 @@ def main():
                     continue
                 try:
                     orderbook = ex.fetch_order_book(market)
+                    ticker = ex.fetch_ticker(market)
+                    quoteVolume = ticker['quoteVolume']
+                    baseVolume = ticker['baseVolume']
+                    
+                    if type(quoteVolume)  != float:
+                        quoteVolume  = 0
+
                 except KeyboardInterrupt:
                     return 1
                 except:
@@ -59,12 +66,12 @@ def main():
                 spread = (ask[0] - bid[0])
                 spread_percent = spread / ask[0] * 100
 
-                print ( '{:>10}'.format(market),'{0:>5.2f}%'.format(spread_percent),'\t', '{0:>10.2f}'.format(bid[0]),'\t', '{0:>12.2f}'.format(bid[1]),'\t', '{0:>10.2f}'.format(ask[0]),'\t', '{0:>12.2f}'.format(ask[1]),'\t', '{0:>10.2f}'.format(spread ),'\t',  '{:<10}'.format(orderbook['datetime']) )
+                print ( '{:>10}'.format(market),'{0:>5.2f}%'.format(spread_percent),'\t', '{0:>10.2f}'.format(bid[0]),'\t', '{0:>12.2f}'.format(baseVolume),'\t', '{0:>10.2f}'.format(ask[0]),'\t', '{0:>12.2f}'.format(quoteVolume),'\t', '{0:>10.2f}'.format(spread ),'\t',  '{:<.16}'.format(orderbook['datetime']) )
             
             print ('===> end', '{:<12}'.format(ex.id) , '<==========================================================================================================\n')
             
         print ('***')
-        sleep(15)
+        sleep(30)
 
 
 #==================================================================================
