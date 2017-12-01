@@ -13,6 +13,8 @@ from time import sleep
 trade_summ_buy  = 0
 trade_summ_sell = 0
 
+pause = False
+
 #Направление торговли 
 sell=0
 buy=1
@@ -44,7 +46,7 @@ def init():
     print(message)
     
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(*[types.KeyboardButton(name) for name in ['Остановить немедленно', 'Остановить после цикла', 'Информация']])
+    keyboard.add(*[types.KeyboardButton(name) for name in ['Остановить немедленно', 'Остановить после цикла', 'Информация','Пауза' ]])
     msg = tbot.send_message(cc_conf.telegram_id, message, reply_markup=keyboard)
 
    
@@ -87,7 +89,7 @@ def check_order(exchange, id, pair, direction):
         message = 'Ордер '+ id +' закрыт. Работа завершена.'
         tbot.send_message(cc_conf.telegram_id, message)        
         sys.exit(2)
-    
+
     #Запрашиваем выставленные ордера
     try:
         sleep(1)
@@ -208,8 +210,22 @@ def getOrderBook(exchange, pair):
 def process_message(self):
     text = self.message.text
     text = text.strip()
+    
+    global pause
+
+    if text == 'Пауза':
+        if pause:
+            pause = False
+            tbot.send_message(cc_conf.telegram_id, 'Работа возобновлена')
+        else:
+            pause = True
+            tbot.send_message(cc_conf.telegram_id, 'Работа приостановлена')
+        
+        sleep(1)
+        return 2
 
     try:
+       
         if text == 'Остановить немедленно':
             return -1
         else:
@@ -223,9 +239,11 @@ def process_message(self):
                 return -2
             else:
                  if text == u'Информация':
-                    message ='Итого \n куплено: '+str(round(trade_summ_buy,trade_precision))+slave_coin+'\n продано: '+str(round(trade_summ_sell,trade_precision))+slave_coin+'\n дельта :'+str(round(trade_summ_sell-trade_summ_buy,trade_precision)) + '\n Спред : ' + str(round(spread_percent,2)) +'% ('+ str(round(spread,trade_precision)) + slave_coin +')'
+                    message ='Итого \n куплено: '+str(round(trade_summ_buy,trade_precision))+slave_coin+'\n продано: '+str(round(trade_summ_sell,trade_precision))+slave_coin+'\n дельта :'+str(round(trade_summ_sell-trade_summ_buy,trade_precision)) + '\n Спред : ' + str(round(spread_percent,2)) +'% ('+ str(round(spread,trade_precision)) + slave_coin +')\n Пауза = '+ str(pause)
                     tbot.send_message(cc_conf.telegram_id, message)
                     message =''
+
+
 
     except Exception:
         pass
@@ -240,7 +258,7 @@ def polling():
     
     updates = tbot.get_updates()
     result = 0
-
+  
     try:
         for update in updates:
             if int(update.update_id) > int(tbot.last_update_id):
@@ -248,7 +266,8 @@ def polling():
                 result = process_message(update)
                 
     except Exception as ex:
-        print(traceback.format_exc())
+        print(ex)
+
     return result
 
 
@@ -326,6 +345,10 @@ def main (update_offset):
             message = u'Ок, Кэп! Завершаю работу. \n'
             tbot.send_message(cc_conf.telegram_id, message)
             sys.exit(-1)
+        else: 
+            if pause:
+                sleep(1)
+                continue
         
         #Проверяем направление торговли, если покупки не было
         if trade_direction == buy:

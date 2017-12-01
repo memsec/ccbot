@@ -9,7 +9,6 @@ from time import sleep
 def init():
     print('spread monitor ver 0.01b')
             
-
 #==================================================================================
 
 def main():
