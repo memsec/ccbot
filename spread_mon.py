@@ -7,9 +7,7 @@ from time import sleep
 
 #==================================================================================
 def init():
-    print('spread monitor ver 0.002a')
-    print ('==================================================================')
-    print ("exchange" ,'\t', "market", '\t','spread %','\t', "bid price",'\t', "bid vol",'\t', "ask price",'\t', "ask vol",'\t', "spread" ,'\t',  "datetime")
+    print('spread monitor ver 0.01b')
             
 
 #==================================================================================
@@ -20,6 +18,11 @@ def main():
 
     exchange.append(ccxt.wex({'verbose': False}))
     exchange.append(ccxt.okcoinusd({'verbose': False}))
+    
+    if len (sys.argv) > 1:
+        filter = str(sys.argv[1]).upper()
+    else:
+        filter = ''
 
     while True:
         for ex in exchange:
@@ -32,7 +35,13 @@ def main():
                 print(err.args[0])
                 continue
 
+            print ('===> begin {:<12}'.format(ex.id) ,'<========================================================================================================')
+            print ('  market   spread %        bid price          bid vol     ask price           ask vol        spread            datetime')
+            print ("---------------------------------------------------------------------------------------------------------------------------------")
+
             for market in ex.markets:
+                if len(filter) != 0 and (ex.markets[market]['quote'] != filter and ex.markets[market]['base'] != filter):
+                    continue
                 try:
                     orderbook = ex.fetch_order_book(market)
                 except KeyboardInterrupt:
@@ -50,12 +59,12 @@ def main():
                 spread = (ask[0] - bid[0])
                 spread_percent = spread / ask[0] * 100
 
-                print (ex.id , market,'\t','{0:.2f}%'.format(spread_percent),'\t', bid[0],'\t', bid[1],'\t', ask[0],'\t', ask[1],'\t', spread ,'\t',  orderbook['datetime'] )
+                print ( '{:>10}'.format(market),'{0:>5.2f}%'.format(spread_percent),'\t', '{0:>10.2f}'.format(bid[0]),'\t', '{0:>12.2f}'.format(bid[1]),'\t', '{0:>10.2f}'.format(ask[0]),'\t', '{0:>12.2f}'.format(ask[1]),'\t', '{0:>10.2f}'.format(spread ),'\t',  '{:<10}'.format(orderbook['datetime']) )
             
-            print ('end', ex.id, '==================================================================')
+            print ('===> end', '{:<12}'.format(ex.id) , '<==========================================================================================================\n')
             
         print ('***')
-        sleep(30)
+        sleep(180)
 
 
 #==================================================================================

@@ -16,15 +16,15 @@ trade_summ_sell = 0
 #Направление торговли 
 sell=0
 buy=1
-    
-trade_direction=buy  
+
+if cc_conf.master_coin.upper() == cc_conf.coin_one.upper() :    
+    trade_direction=buy  
+else:
+    trade_direction=sell 
 
 trade_exit=False
 
 tbot = telebot.AsyncTeleBot(cc_conf.telegram_token)
-
-#tbot._TeleBot__stop_polling._flag = False   
-#tbot.polling()
 
 updates = tbot.get_updates()
 
@@ -72,6 +72,7 @@ def check_balance(exchange, coin):
 
 def check_order(exchange, id, pair, direction):
     
+    sleep(2)
     if polling( ) == -1:
         message = u'Ок, немедленно сворачиваем лавочку.\n'
         tbot.send_message(cc_conf.telegram_id, message)
@@ -116,7 +117,7 @@ def check_order(exchange, id, pair, direction):
             sleep(1)
         else:         
             print('Ошибка (3): ', err) 
-
+            return 0
     try:                       
         for trade_order in orders:
             if trade_order['id'] == id:
@@ -279,6 +280,8 @@ def main (update_offset):
             'verbose': False,
         })
 
+    #exchange.markets[trade_pair]['base']
+    
     coin_one = cc_conf.coin_one.upper() 
     coin_two = cc_conf.coin_two.upper()
     trade_pair = coin_one + '/' + coin_two
@@ -286,13 +289,10 @@ def main (update_offset):
     message='Биржа: ' + exchange.id + '\nТорговая пара:'+ trade_pair
     print (message)
     tbot.send_message(cc_conf.telegram_id, message)
+    
+    master_coin = coin_one
+    slave_coin = coin_two
 
-    if cc_conf.master_coin.upper() == coin_one:
-        master_coin = coin_one
-        slave_coin = coin_two
-    else:
-        master_coin = coin_two
-        slave_coin = coin_one
 
     markets = exchange.load_markets()
     trade_precision = exchange.markets.get(trade_pair).get('precision').get('amount')
@@ -309,10 +309,8 @@ def main (update_offset):
         trade_buyVolume = round(cc_conf.trade_balance/trade_buyPrice*(1-trade_pair_fee),trade_precision)
 
     while True:
-    
-        #tbot.polling(none_stop=False, interval=False, timeout=1)
-        # !!! обязательно добавить проверку успешного исполнения функции
 
+        sleep(2)
         orderbook = getOrderBook(exchange, trade_pair)
 
         bid = max(orderbook['bids'],key=lambda item: item[0])
@@ -385,10 +383,14 @@ def main (update_offset):
         else:  
             trade_sellPrice = round(ask[0] - cc_conf.trade_offset/(10**trade_precision),trade_precision)
             trade_sellVolume = 0
-            trades = exchange.fetchMyTrades(trade_pair)
-            for trade in trades:
-                if trade_buyOrder['id'] == trade['order']:
-                    trade_sellVolume = trade_sellVolume + trade['amount']
+            
+            try:
+                trades = exchange.fetchMyTrades(trade_pair)
+                for trade in trades:
+                    if trade_buyOrder['id'] == trade['order']:
+                        trade_sellVolume = trade_sellVolume + trade['amount']
+            except: 
+                trade_sellVolume=cc_conf.trade_balance
 
             if trade_sellVolume > 0:
                 #!!! добавить проверку на минимальный размер ордера
@@ -412,28 +414,26 @@ def main (update_offset):
 
                     trade_sell=round(trade_sellOrder['amount']*trade_sellOrder['price'],trade_precision) 
                     
-                    trade_summ_buy  = trade_summ_buy + trade_buy
-                    trade_summ_sell = trade_summ_sell + trade_sell
+                    if trade_summ_buy != 0:
+                        trade_summ_buy  = trade_summ_buy + trade_buy
+                        trade_summ_sell = trade_summ_sell + trade_sell
 
-                    print('[х] Профит сделки  : ', '{0:.2f}'.format(((trade_sell-trade_buy)/trade_buy)*100), '%  ', '{0:.5f}'.format(trade_sell-trade_buy), slave_coin)
-                    print('[=] Итого за сессию: ', '{0:.2f}'.format(((trade_summ_sell-trade_summ_buy)/trade_summ_buy)*100), '%  ', '{0:.5f}'.format(trade_summ_sell-trade_summ_buy), slave_coin)
-                    print('            куплено: ', '{0:.5f}'.format(trade_summ_buy), slave_coin, 'продано: ', '{0:.5f}'.format(trade_summ_sell), slave_coin)
+                        print('[х] Профит сделки  : ', '{0:.2f}'.format(((trade_sell-trade_buy)/trade_buy)*100), '%  ', '{0:.5f}'.format(trade_sell-trade_buy), slave_coin)
+                        print('[=] Итого за сессию: ', '{0:.2f}'.format(((trade_summ_sell-trade_summ_buy)/trade_summ_buy)*100), '%  ', '{0:.5f}'.format(trade_summ_sell-trade_summ_buy), slave_coin)
+                        print('            куплено: ', '{0:.5f}'.format(trade_summ_buy), slave_coin, 'продано: ', '{0:.5f}'.format(trade_summ_sell), slave_coin)
                     
-                    message = '[х] Профит сделки  : ' +  str(round(((trade_sell-trade_buy)/trade_buy)*100,trade_precision)) + '%  ' + str(round(trade_sell-trade_buy,trade_precision)) + slave_coin
-                    tbot.send_message(cc_conf.telegram_id, message)
+                        message = '[х] Профит сделки  : ' +  str(round(((trade_sell-trade_buy)/trade_buy)*100,trade_precision)) + '%  ' + str(round(trade_sell-trade_buy,trade_precision)) + slave_coin
+                        tbot.send_message(cc_conf.telegram_id, message)
 
                     message ='[=] Итого \n куплено: '+str(round(trade_summ_buy,trade_precision))+slave_coin+'\n продано: '+str(round(trade_summ_sell,trade_precision))+slave_coin+'\n дельта :'+str(round(trade_summ_sell-trade_summ_buy,trade_precision))
                     tbot.send_message(cc_conf.telegram_id, message)
                     message =''
-
-
 
                     break
                 else:
                     if trade_checkOrder == -1:
                         break
             sleep(1)
-
         try:
             sleep(1/trade_speed)
         except KeyboardInterrupt:
