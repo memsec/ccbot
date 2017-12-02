@@ -37,7 +37,6 @@ except Exception as ex:
 update_offset = tbot.last_update_id
 
 
-
 def msg(self):
     print(self)
     tbot.send_message(cc_conf.telegram_id, self)
@@ -465,10 +464,13 @@ def main (update_offset):
 #            tbot.send_message(call.chat.id, "Stopped by keyboard interrupt.", parse_mode="HTML")
             sys.exit(2)
  
-
+@tbot.message_handler(func=lambda message: True)
+def echo_all(message):
+	tbot.reply_to(message, 'Start')
 
 #tbot.polling(none_stop=False)
 if __name__ == '__main__': 
 
     init()    
+    tbot.polling()
     main(update_offset)
