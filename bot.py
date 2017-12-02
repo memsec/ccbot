@@ -128,8 +128,13 @@ def check_order(exchange, id, pair, direction):
             print('Ошибка в значении nonce (1).')
             sleep(1)
         else:         
-            print('Ошибка (3): ', err) 
-            return 0
+            if err.args[0].find('502 Bad Gateway') >= 0 : 
+                print('Ошибка 502 Bad Gateway.')
+                sleep(1)
+                return 0    
+            else:
+                print('Ошибка (3): ', err) 
+                return 0
     try:                       
         for trade_order in orders:
             if trade_order['id'] == id:
